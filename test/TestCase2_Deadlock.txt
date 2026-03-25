@@ -1,0 +1,13 @@
+Test Case 2: Deadlock
+=====================
+n=3, m=2
+Total: [2, 2]
+Allocation:
+  P0: 1 1
+  P1: 1 0
+  P2: 0 1
+Request:
+  P0: 1 1
+  P1: 1 1
+  P2: 1 0
+Expected Output: DEADLOCK — Deadlocked: P0, P1, P2

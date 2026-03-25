@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deadlock Detection Simulator — Banker's Algorithm</title>
+    <meta name="description" content="Simulate OS-level resource allocation and detect deadlocks using Banker's Algorithm. Java | OS | DMGT Microproject.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ═══ Animated Background ═══ -->
+    <div class="bg-animation">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+
+    <!-- ═══ Main Container ═══ -->
+    <div class="container">
+
+        <!-- ═══ Header / Banner ═══ -->
+        <header class="hero" id="hero">
+            <div class="hero-badge">MICROPROJECT</div>
+            <h1 class="hero-title">
+                <span class="hero-icon">🔒</span>
+                Deadlock Detection Simulator
+            </h1>
+            <p class="hero-subtitle">Banker's Algorithm — Safe State & Deadlock Analysis</p>
+            <div class="hero-tags">
+                <span class="tag">Java</span>
+                <span class="tag">Operating Systems</span>
+                <span class="tag">DMGT</span>
+            </div>
+        </header>
+
+        <!-- ═══ Step 1: System Dimensions ═══ -->
+        <section class="card" id="step1">
+            <div class="card-header">
+                <span class="step-badge">STEP 1</span>
+                <h2>System Dimensions</h2>
+            </div>
+            <div class="card-body">
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="numProcesses">Number of Processes (n)</label>
+                        <input type="number" id="numProcesses" min="1" max="20" value="5" placeholder="1–20">
+                        <span class="input-hint">Max: 20</span>
+                    </div>
+                    <div class="input-group">
+                        <label for="numResources">Number of Resource Types (m)</label>
+                        <input type="number" id="numResources" min="1" max="10" value="3" placeholder="1–10">
+                        <span class="input-hint">Max: 10</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="btnGenerate" onclick="generateMatrices()">
+                    <span class="btn-icon">⚡</span> Generate Input Matrices
+                </button>
+            </div>
+        </section>
+
+        <!-- ═══ Step 2–4: Input Matrices (generated dynamically) ═══ -->
+        <div id="matricesContainer" style="display: none;">
+
+            <!-- Total Resources -->
+            <section class="card" id="step2">
+                <div class="card-header">
+                    <span class="step-badge">STEP 2</span>
+                    <h2>Total Resources Vector</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-desc">Enter the TOTAL units available in the system for each resource type.</p>
+                    <div class="matrix-grid" id="totalResourcesGrid"></div>
+                </div>
+            </section>
+
+            <!-- Allocation Matrix -->
+            <section class="card" id="step3">
+                <div class="card-header">
+                    <span class="step-badge">STEP 3</span>
+                    <h2>Allocation Matrix</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-desc">Enter units <strong>currently held</strong> by each process.</p>
+                    <div class="matrix-container" id="allocationMatrix"></div>
+                </div>
+            </section>
+
+            <!-- Request Matrix -->
+            <section class="card" id="step4">
+                <div class="card-header">
+                    <span class="step-badge">STEP 4</span>
+                    <h2>Request Matrix</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-desc">Enter units <strong>currently requested</strong> by each process.</p>
+                    <div class="matrix-container" id="requestMatrix"></div>
+                </div>
+            </section>
+
+            <!-- Load Test Case + Run Button -->
+            <div class="action-bar">
+                <button class="btn btn-secondary" onclick="loadSafeTestCase()">
+                    📋 Load Safe State Test Case
+                </button>
+                <button class="btn btn-secondary" onclick="loadDeadlockTestCase()">
+                    📋 Load Deadlock Test Case
+                </button>
+                <button class="btn btn-primary btn-large" id="btnRun" onclick="runAlgorithm()">
+                    <span class="btn-icon">🚀</span> Run Banker's Algorithm
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ Loading Spinner ═══ -->
+        <div id="loadingSpinner" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Running Banker's Algorithm...</p>
+        </div>
+
+        <!-- ═══ Results Section ═══ -->
+        <div id="resultsContainer" style="display: none;">
+
+            <!-- Available Vector -->
+            <section class="card card-info" id="availableCard">
+                <div class="card-header">
+                    <span class="step-badge badge-info">COMPUTED</span>
+                    <h2>Available Resources Vector</h2>
+                </div>
+                <div class="card-body">
+                    <p class="formula">Available[j] = Total[j] − Σ Allocation[i][j]</p>
+                    <div class="vector-display" id="availableVector"></div>
+                </div>
+            </section>
+
+            <!-- Resource Allocation Graph -->
+            <section class="card" id="ragCard">
+                <div class="card-header">
+                    <span class="step-badge badge-rag">GRAPH</span>
+                    <h2>Resource Allocation Graph</h2>
+                </div>
+                <div class="card-body">
+                    <div class="rag-legend">
+                        <div class="legend-item">
+                            <span class="legend-dot legend-alloc"></span>
+                            <span>Allocation (Resource → Process)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot legend-req"></span>
+                            <span>Request (Process → Resource)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-shape legend-circle"></span>
+                            <span>Process</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-shape legend-square"></span>
+                            <span>Resource</span>
+                        </div>
+                    </div>
+                    <div class="rag-container" id="ragContainer">
+                        <!-- SVG rendered by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Algorithm Trace -->
+            <section class="card" id="traceCard">
+                <div class="card-header">
+                    <span class="step-badge badge-trace">TRACE</span>
+                    <h2>Algorithm Execution Trace</h2>
+                </div>
+                <div class="card-body">
+                    <div class="trace-container" id="traceContainer"></div>
+                </div>
+            </section>
+
+            <!-- Final Result -->
+            <section class="card" id="resultCard">
+                <div class="card-header">
+                    <span class="step-badge" id="resultBadge">RESULT</span>
+                    <h2 id="resultTitle">Result</h2>
+                </div>
+                <div class="card-body" id="resultBody">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
+
+            <!-- Run Again -->
+            <div class="action-bar">
+                <button class="btn btn-primary btn-large" onclick="resetAll()">
+                    <span class="btn-icon">🔄</span> Run Again with New Inputs
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ Footer ═══ -->
+        <footer class="footer">
+            <p>Deadlock Detection Simulator • Banker's Algorithm</p>
+            <p class="footer-sub">Java | Operating Systems | DMGT — Microproject</p>
+        </footer>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

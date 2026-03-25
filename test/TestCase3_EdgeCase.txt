@@ -1,0 +1,8 @@
+Test Case 3: Edge Case — Single Process
+========================================
+n=1, m=1
+Total: [3]
+Allocation: P0: [2]
+Request:    P0: [1]
+Available:  [1]
+Expected Output: SAFE — Sequence: P0
