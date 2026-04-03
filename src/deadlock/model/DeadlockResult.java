@@ -4,31 +4,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * DeadlockResult — Data model that holds the result of the Banker's Algorithm.
- * 
- * Fields:
- *   isSafe          — true if system is in safe state, false if deadlock
- *   safeSequence    — order of process execution (if safe)
- *   deadlockedProcs — deadlocked process IDs (if unsafe)
- *   traceLog        — step-by-step trace messages
+ * Stores the output of running the Banker's Algorithm on a SystemState.
+ * Contains the safe/deadlock verdict, the process execution order (if safe),
+ * the list of deadlocked processes (if not), and a trace log.
  */
 public class DeadlockResult {
 
     private boolean isSafe;
     private List<Integer> safeSequence;
     private List<Integer> deadlockedProcs;
-    private List<String> traceLog;
-
-    // ─── Constructor ────────────────────────────────────────────
 
     public DeadlockResult() {
         this.isSafe = false;
         this.safeSequence = new ArrayList<>();
         this.deadlockedProcs = new ArrayList<>();
-        this.traceLog = new ArrayList<>();
+
     }
 
-    // ─── Getters ────────────────────────────────────────────────
+
 
     public boolean isSafe() {
         return isSafe;
@@ -42,11 +35,9 @@ public class DeadlockResult {
         return deadlockedProcs;
     }
 
-    public List<String> getTraceLog() {
-        return traceLog;
-    }
 
-    // ─── Setters ────────────────────────────────────────────────
+
+
 
     public void setSafe(boolean safe) {
         isSafe = safe;
@@ -60,21 +51,20 @@ public class DeadlockResult {
         this.deadlockedProcs = deadlockedProcs;
     }
 
-    public void setTraceLog(List<String> traceLog) {
-        this.traceLog = traceLog;
-    }
 
-    // ─── Convenience Methods ────────────────────────────────────
 
+    // convenience methods for building up the result
     public void addToSafeSequence(int processId) {
         this.safeSequence.add(processId);
     }
+
 
     public void addDeadlockedProcess(int processId) {
         this.deadlockedProcs.add(processId);
     }
 
+
     public void addTrace(String message) {
-        this.traceLog.add(message);
+
     }
 }

@@ -4,25 +4,15 @@ import deadlock.model.SystemState;
 import java.util.Scanner;
 
 /**
- * InputHandler — Handles ALL user input from the console.
- * 
- * Responsibilities:
- *   - Reads n (processes) and m (resource types)
- *   - Reads Total Resources vector [m]
- *   - Reads Allocation Matrix [n][m]
- *   - Reads Request Matrix [n][m]
- *   - Computes Available Vector = Total − ColumnSum(Allocation)
- *   - Validates all inputs (non-negative, correct dimensions)
- *   - Returns a populated SystemState object
+ * Handles reading user input from the console to build a SystemState.
  */
 public class ConsoleInputReader {
 
     private Scanner scanner;
 
-    // ANSI color codes
+    // Colors to make the console output easier to read
     private static final String CYAN   = "\u001B[36m";
     private static final String YELLOW = "\u001B[33m";
-    private static final String GREEN  = "\u001B[32m";
     private static final String RED    = "\u001B[31m";
     private static final String WHITE  = "\u001B[37m";
     private static final String RESET  = "\u001B[0m";
@@ -32,148 +22,127 @@ public class ConsoleInputReader {
     }
 
     /**
-     * Collects all inputs from the user and returns a populated SystemState.
-     * Screens 2–6 from the Design Document.
+     * Walks the user through all the input steps and returns a complete SystemState.
+     * Returns null if the input turns out to be invalid (e.g., allocation > total).
      */
     public SystemState collectInput() {
 
-        // ═══════════════════════════════════════════════════════════
-        // SCREEN 2 — System Dimensions Input
-        // ═══════════════════════════════════════════════════════════
+
         System.out.println();
         printBoxHeader("STEP 1: System Dimensions");
         System.out.println();
 
-        int n = readBoundedInt("  Enter number of Processes      (n): ", 1, 20);
-        int m = readBoundedInt("  Enter number of Resource Types (m): ", 1, 10);
+        int numberOfProcesses = askForNumberInRange("  How many processes?       (1–20): ", 1, 20);
+        int numberOfResourceTypes = askForNumberInRange("  How many resource types?  (1–10): ", 1, 10);
 
         System.out.println();
-        System.out.println("  [Processes will be labeled: P0, P1, P2" + (n > 3 ? " ..." : "") + "]");
-        System.out.println("  [Resources will be labeled: R0, R1, R2" + (m > 3 ? " ..." : "") + "]");
+        System.out.println("  [Processes: P0 to P" + (numberOfProcesses - 1) + "]");
+        System.out.println("  [Resources: R0 to R" + (numberOfResourceTypes - 1) + "]");
 
-        // ═══════════════════════════════════════════════════════════
-        // SCREEN 3 — Total Resources Input
-        // ═══════════════════════════════════════════════════════════
+
         System.out.println();
         printBoxHeader("STEP 2: Total Resources Vector");
         System.out.println();
-        System.out.println("  Enter the TOTAL units available in the system for each resource:");
+        System.out.println("  Enter the total units of each resource type:");
         System.out.println();
 
-        int[] totalResources = new int[m];
-        for (int j = 0; j < m; j++) {
-            totalResources[j] = readNonNegativeInt("  R" + j + " (total): ");
+        int[] totalResources = new int[numberOfResourceTypes];
+        for (int j = 0; j < numberOfResourceTypes; j++) {
+            totalResources[j] = askForNonNegativeInt("  R" + j + " (total): ");
         }
 
-        // Display Total Resources summary
+
         System.out.println();
         System.out.print("  Total Resources = [");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < numberOfResourceTypes; j++) {
             System.out.print(" R" + j + " ");
         }
         System.out.println("]");
         System.out.print("                    [");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < numberOfResourceTypes; j++) {
             System.out.printf("%3d ", totalResources[j]);
         }
         System.out.println("]");
 
-        // ═══════════════════════════════════════════════════════════
-        // SCREEN 4 — Allocation Matrix Input
-        // ═══════════════════════════════════════════════════════════
+
         System.out.println();
-        printBoxHeader("STEP 3: Allocation Matrix (" + n + " \u00D7 " + m + ")");
+        printBoxHeader("STEP 3: Allocation Matrix (" + numberOfProcesses + " \u00D7 " + numberOfResourceTypes + ")");
         System.out.println();
-        System.out.println("  Enter units CURRENTLY HELD by each process:");
-        System.out.println("  (How many units of each resource does each process already have?)");
+        System.out.println("  Enter units currently allocated to each process:");
         System.out.println();
 
-        int[][] allocation = readMatrix("Allocation", n, m);
+        int[][] allocation = readMatrix("Allocation", numberOfProcesses, numberOfResourceTypes);
 
-        // ═══════════════════════════════════════════════════════════
-        // SCREEN 5 — Request Matrix Input
-        // ═══════════════════════════════════════════════════════════
+
         System.out.println();
-        printBoxHeader("STEP 4: Request Matrix (" + n + " \u00D7 " + m + ")");
+        printBoxHeader("STEP 4: Request Matrix (" + numberOfProcesses + " \u00D7 " + numberOfResourceTypes + ")");
         System.out.println();
-        System.out.println("  Enter units CURRENTLY REQUESTED by each process:");
-        System.out.println("  (How many additional units does each process need right now?)");
+        System.out.println("  Enter additional units requested by each process:");
         System.out.println();
 
-        int[][] request = readMatrix("Request", n, m);
+        int[][] request = readMatrix("Request", numberOfProcesses, numberOfResourceTypes);
 
-        // ═══════════════════════════════════════════════════════════
-        // Compute Available Vector
-        // ═══════════════════════════════════════════════════════════
-        int[] available = computeAvailable(totalResources, allocation, n, m);
 
-        // Validate that Available vector has no negative values
-        boolean valid = true;
-        for (int j = 0; j < m; j++) {
+        int[] available = computeAvailable(totalResources, allocation, numberOfProcesses, numberOfResourceTypes);
+
+
+        boolean inputsAreValid = true;
+        for (int j = 0; j < numberOfResourceTypes; j++) {
             if (available[j] < 0) {
-                System.out.println(RED + "  \u26A0 Error: Allocation exceeds Total Resources for R" + j + ". Check inputs." + RESET);
-                valid = false;
+                System.out.println(RED + "  Error: Available resources cannot be negative for R" + j + "." + RESET);
+                inputsAreValid = false;
             }
         }
 
-        if (!valid) {
-            System.out.println(RED + "  \u26A0 Available vector has negative values. System state is invalid." + RESET);
-            System.out.println(RED + "  Please restart and enter correct values." + RESET);
+        if (!inputsAreValid) {
+            System.out.println(RED + "  Error: Invalid inputs. System cannot be initialized." + RESET);
             return null;
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // SCREEN 6 — Computed Available Vector
-        // ═══════════════════════════════════════════════════════════
+
         System.out.println();
         printBoxHeader("Computed: Available Resources Vector");
         System.out.println();
         System.out.println("  Formula: Available[j] = Total[j] \u2212 \u03A3 Allocation[i][j]");
         System.out.println();
 
-        // Sum of Allocation per column
-        int[] sumAlloc = new int[m];
-        for (int j = 0; j < m; j++) {
-            for (int i = 0; i < n; i++) {
-                sumAlloc[j] += allocation[i][j];
+
+        int[] allocationColumnSums = new int[numberOfResourceTypes];
+        for (int j = 0; j < numberOfResourceTypes; j++) {
+            for (int i = 0; i < numberOfProcesses; i++) {
+                allocationColumnSums[j] += allocation[i][j];
             }
         }
 
         System.out.print("  Total Resources   :  [");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < numberOfResourceTypes; j++) {
             System.out.printf("%4d", totalResources[j]);
         }
         System.out.println("  ]");
 
         System.out.print("  Sum of Allocation :  [");
-        for (int j = 0; j < m; j++) {
-            System.out.printf("%4d", sumAlloc[j]);
+        for (int j = 0; j < numberOfResourceTypes; j++) {
+            System.out.printf("%4d", allocationColumnSums[j]);
         }
         System.out.println("  ]");
 
-        System.out.println("                        " + "\u2500".repeat(m * 4 + 3));
+        System.out.println("                        " + "\u2500".repeat(numberOfResourceTypes * 4 + 3));
 
         System.out.print("  Available         :  [");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < numberOfResourceTypes; j++) {
             System.out.printf("%4d", available[j]);
         }
         System.out.println("  ]");
 
         System.out.println();
-        System.out.println(GREEN + "  \u2714 Available vector computed successfully." + RESET);
+        System.out.println();
 
-        // Build and return SystemState
-        SystemState state = new SystemState(n, m, totalResources, allocation, request, available);
-        return state;
+
+        return new SystemState(numberOfProcesses, numberOfResourceTypes, totalResources, allocation, request, available);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Private Helpers
-    // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Prints a box header using ╔═╗ ║ ╚═╝ characters (design.md Section 5).
-     */
+
     private void printBoxHeader(String title) {
         int width = title.length() + 6;
         System.out.println(CYAN + "  \u2554" + "\u2550".repeat(width) + "\u2557" + RESET);
@@ -181,85 +150,72 @@ public class ConsoleInputReader {
         System.out.println(CYAN + "  \u255A" + "\u2550".repeat(width) + "\u255D" + RESET);
     }
 
-    /**
-     * Reads a bounded integer with validation (design.md Section 3).
-     */
-    private int readBoundedInt(String prompt, int min, int max) {
+    private int askForNumberInRange(String prompt, int min, int max) {
         while (true) {
             System.out.print(prompt);
             try {
                 String input = scanner.nextLine().trim();
                 int value = Integer.parseInt(input);
                 if (value < min || value > max) {
-                    System.out.println(YELLOW + "  \u26A0  Value must be between " + min + " and " + max + "." + RESET);
+                    System.out.println(YELLOW + "  Value must be between " + min + " and " + max + "." + RESET);
                     continue;
                 }
                 return value;
             } catch (NumberFormatException e) {
-                System.out.println(YELLOW + "  \u26A0 Error: Only integers are accepted." + RESET);
+                System.out.println(YELLOW + "  Invalid number format." + RESET);
             }
         }
     }
 
-    /**
-     * Reads a non-negative integer with validation (design.md Section 3).
-     */
-    private int readNonNegativeInt(String prompt) {
+    private int askForNonNegativeInt(String prompt) {
         while (true) {
             System.out.print(prompt);
             try {
                 String input = scanner.nextLine().trim();
                 int value = Integer.parseInt(input);
                 if (value < 0) {
-                    System.out.println(YELLOW + "  \u26A0 Error: Value cannot be negative. Please re-enter." + RESET);
+                    System.out.println(YELLOW + "  Value cannot be negative." + RESET);
                     continue;
                 }
                 return value;
             } catch (NumberFormatException e) {
-                System.out.println(YELLOW + "  \u26A0 Error: Only integers are accepted." + RESET);
+                System.out.println(YELLOW + "  Invalid number format." + RESET);
             }
         }
     }
 
-    /**
-     * Reads a matrix (n × m) with per-process/per-resource prompts,
-     * then displays it in a bordered table (design.md Screens 4 & 5).
-     */
-    private int[][] readMatrix(String label, int n, int m) {
-        int[][] matrix = new int[n][m];
-        for (int i = 0; i < n; i++) {
+    private int[][] readMatrix(String label, int rows, int cols) {
+        int[][] matrix = new int[rows][cols];
+        for (int i = 0; i < rows; i++) {
             System.out.println("  Process P" + i + ":");
 
-            // Collect all resource values for this process on separate lines
-            for (int j = 0; j < m; j++) {
-                matrix[i][j] = readNonNegativeInt("    R" + j + ": ");
+            for (int j = 0; j < cols; j++) {
+                matrix[i][j] = askForNonNegativeInt("    R" + j + ": ");
             }
             System.out.println();
         }
 
-        // Display the entered matrix in a bordered table
-        // ┌─ Label Matrix ──────────────────────┐
-        int tableWidth = 7 + m * 5 + 15;  // fixed width for alignment
+
+        int tableWidth = 7 + cols * 5 + 15;
         System.out.println("  \u250C\u2500 " + label + " Matrix " + "\u2500".repeat(Math.max(1, tableWidth - label.length() - 10)) + "\u2510");
 
-        // Header row with resource labels
+
         System.out.print("  \u2502       ");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < cols; j++) {
             System.out.printf("  R%-2d", j);
         }
-        // pad to fill table width
-        int headerUsed = 7 + m * 5;
+        int headerUsed = 7 + cols * 5;
         System.out.print(" ".repeat(Math.max(1, tableWidth - headerUsed)));
         System.out.println("\u2502");
 
-        // Data rows
-        for (int i = 0; i < n; i++) {
+
+        for (int i = 0; i < rows; i++) {
             System.out.printf("  \u2502  P%-2d [", i);
-            for (int j = 0; j < m; j++) {
+            for (int j = 0; j < cols; j++) {
                 System.out.printf("%4d ", matrix[i][j]);
             }
             System.out.print("]");
-            int rowUsed = 7 + m * 5 + 1;
+            int rowUsed = 7 + cols * 5 + 1;
             System.out.print(" ".repeat(Math.max(1, tableWidth - rowUsed)));
             System.out.println("\u2502");
         }
@@ -269,17 +225,14 @@ public class ConsoleInputReader {
         return matrix;
     }
 
-    /**
-     * Computes Available Vector = Total − ColumnSum(Allocation).
-     */
-    private int[] computeAvailable(int[] total, int[][] allocation, int n, int m) {
-        int[] available = new int[m];
-        for (int j = 0; j < m; j++) {
-            int sumAlloc = 0;
-            for (int i = 0; i < n; i++) {
-                sumAlloc += allocation[i][j];
+    private int[] computeAvailable(int[] total, int[][] allocation, int numberOfProcesses, int numberOfResourceTypes) {
+        int[] available = new int[numberOfResourceTypes];
+        for (int j = 0; j < numberOfResourceTypes; j++) {
+            int totalAllocated = 0;
+            for (int i = 0; i < numberOfProcesses; i++) {
+                totalAllocated += allocation[i][j];
             }
-            available[j] = total[j] - sumAlloc;
+            available[j] = total[j] - totalAllocated;
         }
         return available;
     }

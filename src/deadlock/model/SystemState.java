@@ -1,46 +1,47 @@
 package deadlock.model;
 
 /**
- * SystemState — Data model that holds all input data for one simulation run.
- * 
- * Fields:
- *   n              — number of processes
- *   m              — number of resource types
- *   totalResources — Total[m]
- *   allocation     — Allocation[n][m]
- *   request        — Request[n][m]
- *   available      — Available[m] (auto-computed)
+ * Data class that stores everything about the current system state.
+ * Holds process/resource counts, the allocation and request matrices,
+ * total resources, and the computed available vector.
  */
 public class SystemState {
 
-    private int n;                   // number of processes
-    private int m;                   // number of resource types
-    private int[] totalResources;    // Total[m]
-    private int[][] allocation;      // Allocation[n][m]
-    private int[][] request;         // Request[n][m]
-    private int[] available;         // Available[m] — computed
+    private int processCount;          // number of processes
 
-    // ─── Constructors ───────────────────────────────────────────
+    private int resourceTypeCount;     // number of resource types
+
+    private int[] totalResources;      // total instances of each resource
+
+    private int[][] allocation;        // what each process currently holds
+
+    private int[][] request;           // what each process still needs
+
+    private int[] available;           // free resources = total - sum(allocation)
 
     public SystemState() {}
 
-    public SystemState(int n, int m, int[] totalResources, int[][] allocation, int[][] request, int[] available) {
-        this.n = n;
-        this.m = m;
+
+
+    public SystemState(int processCount, int resourceTypeCount,
+                       int[] totalResources, int[][] allocation,
+                       int[][] request, int[] available) {
+        this.processCount = processCount;
+        this.resourceTypeCount = resourceTypeCount;
         this.totalResources = totalResources;
         this.allocation = allocation;
         this.request = request;
         this.available = available;
     }
 
-    // ─── Getters ────────────────────────────────────────────────
+    // getN() and getM() kept for backward compatibility with ApiHandler
 
     public int getN() {
-        return n;
+        return processCount;
     }
 
     public int getM() {
-        return m;
+        return resourceTypeCount;
     }
 
     public int[] getTotalResources() {
@@ -59,14 +60,14 @@ public class SystemState {
         return available;
     }
 
-    // ─── Setters ────────────────────────────────────────────────
 
-    public void setN(int n) {
-        this.n = n;
+
+    public void setN(int processCount) {
+        this.processCount = processCount;
     }
 
-    public void setM(int m) {
-        this.m = m;
+    public void setM(int resourceTypeCount) {
+        this.resourceTypeCount = resourceTypeCount;
     }
 
     public void setTotalResources(int[] totalResources) {
@@ -85,43 +86,46 @@ public class SystemState {
         this.available = available;
     }
 
-    // ─── toString (for debug printing) ──────────────────────────
+
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("SystemState { n=").append(n).append(", m=").append(m).append(" }\n");
 
-        sb.append("Total Resources: [");
-        for (int j = 0; j < m; j++) {
+        sb.append("SystemState { processes=").append(processCount)
+          .append(", resources=").append(resourceTypeCount).append(" }\n");
+
+
+        sb.append("  Total Resources : [");
+        for (int j = 0; j < resourceTypeCount; j++) {
+            if (j > 0) sb.append(", ");
             sb.append(totalResources[j]);
-            if (j < m - 1) sb.append(", ");
         }
         sb.append("]\n");
 
         sb.append("Available: [");
-        for (int j = 0; j < m; j++) {
+        for (int j = 0; j < resourceTypeCount; j++) {
+            if (j > 0) sb.append(", ");
             sb.append(available[j]);
-            if (j < m - 1) sb.append(", ");
         }
-        sb.append("]\n");
+        sb.append("]\n\n");
 
-        sb.append("Allocation Matrix:\n");
-        for (int i = 0; i < n; i++) {
+        sb.append("Allocation:\n");
+        for (int i = 0; i < processCount; i++) {
             sb.append("  P").append(i).append(": [");
-            for (int j = 0; j < m; j++) {
+            for (int j = 0; j < resourceTypeCount; j++) {
+                if (j > 0) sb.append(", ");
                 sb.append(allocation[i][j]);
-                if (j < m - 1) sb.append(", ");
             }
             sb.append("]\n");
         }
 
-        sb.append("Request Matrix:\n");
-        for (int i = 0; i < n; i++) {
+        sb.append("Request:\n");
+        for (int i = 0; i < processCount; i++) {
             sb.append("  P").append(i).append(": [");
-            for (int j = 0; j < m; j++) {
+            for (int j = 0; j < resourceTypeCount; j++) {
+                if (j > 0) sb.append(", ");
                 sb.append(request[i][j]);
-                if (j < m - 1) sb.append(", ");
             }
             sb.append("]\n");
         }

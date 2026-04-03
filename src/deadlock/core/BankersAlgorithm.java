@@ -6,129 +6,107 @@ import deadlock.model.SystemState;
 import java.util.Arrays;
 
 /**
- * BankersAlgorithm — Core algorithm implementation.
- * 
- * Implements the Banker's Safety Algorithm:
- *   1. Work = Available.copy()
- *   2. Finish[i] = false for all i
- *   3. Loop: find Pi where Finish[Pi]=false AND Request[Pi] <= Work
- *   4. If found: Work += Allocation[Pi], Finish[Pi] = true
- *   5. Repeat until no more found
- *   6. If all Finish = true → SAFE; else → DEADLOCK
- * 
- * Trace output matches design.md Screen 8 format exactly.
+ * Implements the Banker's Safety Algorithm to determine if a system state
+ * is safe or will lead to a deadlock.
  */
 public class BankersAlgorithm {
 
-    /**
-     * Runs the Banker's Safety Algorithm on the given SystemState.
-     * 
-     * @param state The system state containing all matrices and vectors
-     * @return DeadlockResult containing safe sequence or deadlocked processes
-     */
+
     public DeadlockResult runSafetyAlgorithm(SystemState state) {
 
-        int n = state.getN();
-        int m = state.getM();
+        int numberOfProcesses = state.getN();
+        int numberOfResourceTypes = state.getM();
         int[][] allocation = state.getAllocation();
         int[][] request = state.getRequest();
 
         DeadlockResult result = new DeadlockResult();
 
-        // Step 1: Work = copy of Available
-        int[] work = Arrays.copyOf(state.getAvailable(), m);
+        int[] work = Arrays.copyOf(state.getAvailable(), numberOfResourceTypes);
 
-        // Step 2: Finish[i] = false for all i
-        boolean[] finish = new boolean[n];
+        boolean[] finished = new boolean[numberOfProcesses];
 
-        // ── Trace: Initial state (matches Screen 8 header) ──
-        result.addTrace("Initial Work (Available) : " + arrayToString(work));
-        result.addTrace("Finish Array             : " + finishToString(finish));
+
+        result.addTrace("Initial Work (Available) : " + formatArray(work));
+        result.addTrace("Finish Array             : " + formatFinishArray(finished));
         result.addTrace("");
 
-        // Step 3–5: Repeat until no process can be found
-        int iteration = 0;
-        boolean found;
+
+        int iterationNumber = 0;
+        boolean madeProgress;
 
         do {
-            found = false;
-            iteration++;
+            madeProgress = false;
+            iterationNumber++;
             result.addTrace("\u2500".repeat(58));
-            result.addTrace("ITERATION " + iteration + ":");
+            result.addTrace("ITERATION " + iterationNumber + ":");
 
-            for (int i = 0; i < n; i++) {
-                if (finish[i]) continue;
+            for (int processIndex = 0; processIndex < numberOfProcesses; processIndex++) {
+                if (finished[processIndex]) continue;
 
-                if (canExecute(i, work, state)) {
-                    // ── Trace: Process Pi can execute ──
-                    result.addTrace("  Checking P" + i + ": Request[" + i + "] = " 
-                        + arrayToString(request[i]) + " \u2264 Work " + arrayToString(work) + " \u2192 \u2714 EXECUTE");
+                if (canProcessRun(processIndex, work, state)) {
 
-                    // Work = Work + Allocation[Pi]
-                    int[] oldWork = Arrays.copyOf(work, m);
-                    for (int j = 0; j < m; j++) {
-                        work[j] += allocation[i][j];
+                    result.addTrace("  Checking P" + processIndex + ": Request[" + processIndex + "] = "
+                        + formatArray(request[processIndex]) + " \u2264 Work " + formatArray(work) + " \u2192 \u2714 EXECUTE");
+
+
+                    int[] workBeforeRelease = Arrays.copyOf(work, numberOfResourceTypes);
+                    for (int resourceIndex = 0; resourceIndex < numberOfResourceTypes; resourceIndex++) {
+                        work[resourceIndex] += allocation[processIndex][resourceIndex];
                     }
 
-                    result.addTrace("  \u2192 Work  = Work + Allocation[P" + i + "] = " 
-                        + arrayToString(oldWork) + " + " 
-                        + arrayToString(allocation[i]) + " = " + arrayToString(work));
+                    result.addTrace("  \u2192 Work  = Work + Allocation[P" + processIndex + "] = "
+                        + formatArray(workBeforeRelease) + " + "
+                        + formatArray(allocation[processIndex]) + " = " + formatArray(work));
 
-                    // Finish[Pi] = true
-                    finish[i] = true;
-                    result.addTrace("  \u2192 Finish[P" + i + "] = true");
+                    finished[processIndex] = true;
+                    result.addTrace("  \u2192 Finish[P" + processIndex + "] = true");
 
-                    // Add to safe sequence
-                    result.addToSafeSequence(i);
-                    result.addTrace("  \u2192 Safe Sequence so far: " + sequenceToString(result.getSafeSequence()));
+                    result.addToSafeSequence(processIndex);
+                    result.addTrace("  \u2192 Safe Sequence so far: " + formatSequence(result.getSafeSequence()));
                     result.addTrace("");
 
-                    found = true;
+                    madeProgress = true;
                 } else {
-                    // ── Trace: Process Pi cannot execute ──
-                    result.addTrace("  Checking P" + i + ": Request[" + i + "] = " 
-                        + arrayToString(request[i]) + " > Work " + arrayToString(work) + " \u2192 \u2717 SKIP");
+
+                    result.addTrace("  Checking P" + processIndex + ": Request[" + processIndex + "] = "
+                        + formatArray(request[processIndex]) + " > Work " + formatArray(work) + " \u2192 \u2717 SKIP");
                 }
             }
 
-            if (!found) {
+            if (!madeProgress) {
                 result.addTrace("  No process can proceed...");
             }
 
-        } while (found);
+        } while (madeProgress);
 
-        // Step 6: Check if all processes finished
-        boolean allFinished = true;
-        for (int i = 0; i < n; i++) {
-            if (!finish[i]) {
-                allFinished = false;
-                result.addDeadlockedProcess(i);
+
+        boolean everyoneFinished = true;
+        for (int processIndex = 0; processIndex < numberOfProcesses; processIndex++) {
+            if (!finished[processIndex]) {
+                everyoneFinished = false;
+                result.addDeadlockedProcess(processIndex);
             }
         }
 
-        result.setSafe(allFinished);
+        result.setSafe(everyoneFinished);
         return result;
     }
 
-    /**
-     * Checks whether process Pi can execute with the current Work vector.
-     * Condition: Request[Pi][j] <= Work[j] for all j
-     */
-    private boolean canExecute(int process, int[] work, SystemState state) {
-        int[][] request = state.getRequest();
-        int m = state.getM();
 
-        for (int j = 0; j < m; j++) {
-            if (request[process][j] > work[j]) {
+    private boolean canProcessRun(int processIndex, int[] work, SystemState state) {
+        int[][] request = state.getRequest();
+        int numberOfResourceTypes = state.getM();
+
+        for (int resourceIndex = 0; resourceIndex < numberOfResourceTypes; resourceIndex++) {
+            if (request[processIndex][resourceIndex] > work[resourceIndex]) {
                 return false;
             }
         }
         return true;
     }
 
-    // ─── Helper: Convert int[] to string like [3, 3, 2] ────────
 
-    private String arrayToString(int[] arr) {
+    private String formatArray(int[] arr) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < arr.length; i++) {
             sb.append(arr[i]);
@@ -138,21 +116,19 @@ public class BankersAlgorithm {
         return sb.toString();
     }
 
-    // ─── Helper: Convert finish array to string like [F, F, T] ─
 
-    private String finishToString(boolean[] finish) {
+    private String formatFinishArray(boolean[] finished) {
         StringBuilder sb = new StringBuilder("[ ");
-        for (int i = 0; i < finish.length; i++) {
-            sb.append(finish[i] ? "T" : "F");
-            if (i < finish.length - 1) sb.append("   ");
+        for (int i = 0; i < finished.length; i++) {
+            sb.append(finished[i] ? "T" : "F");
+            if (i < finished.length - 1) sb.append("   ");
         }
         sb.append(" ]");
         return sb.toString();
     }
 
-    // ─── Helper: Convert safe sequence to string like < P1, P3 > 
 
-    private String sequenceToString(java.util.List<Integer> seq) {
+    private String formatSequence(java.util.List<Integer> seq) {
         StringBuilder sb = new StringBuilder("< ");
         for (int i = 0; i < seq.size(); i++) {
             sb.append("P").append(seq.get(i));

@@ -7,16 +7,13 @@ import java.io.*;
 import java.nio.file.*;
 
 /**
- * StaticFileHandler — Serves static files (HTML, CSS, JS) from the web/ directory.
- * 
- * Detects MIME types automatically for proper browser rendering.
+ * Serves static files for the web UI.
  */
 public class StaticFileHandler implements HttpHandler {
 
     private final String webRoot;
 
     public StaticFileHandler() {
-        // Determine the web root directory relative to where the server is run
         this.webRoot = System.getProperty("user.dir") + File.separator + "web";
     }
 
@@ -24,12 +21,12 @@ public class StaticFileHandler implements HttpHandler {
     public void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
 
-        // Default to index.html
+        // Route to index.html for root path
         if ("/".equals(path) || path.isEmpty()) {
             path = "/index.html";
         }
 
-        // Security: prevent directory traversal
+        // Prevent directory traversal
         if (path.contains("..")) {
             exchange.sendResponseHeaders(403, -1);
             return;
@@ -38,7 +35,6 @@ public class StaticFileHandler implements HttpHandler {
         File file = new File(webRoot + path.replace("/", File.separator));
 
         if (!file.exists() || file.isDirectory()) {
-            // 404 Not Found
             String notFound = "<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>";
             byte[] bytes = notFound.getBytes();
             exchange.getResponseHeaders().set("Content-Type", "text/html");
@@ -48,11 +44,10 @@ public class StaticFileHandler implements HttpHandler {
             return;
         }
 
-        // Set MIME type
-        String mime = getMimeType(file.getName());
+        // Set content type based on extension
+        String mime = guessContentType(file.getName());
         exchange.getResponseHeaders().set("Content-Type", mime);
 
-        // Send file
         byte[] fileBytes = Files.readAllBytes(file.toPath());
         exchange.sendResponseHeaders(200, fileBytes.length);
         OutputStream os = exchange.getResponseBody();
@@ -60,10 +55,8 @@ public class StaticFileHandler implements HttpHandler {
         os.close();
     }
 
-    /**
-     * Returns MIME type based on file extension.
-     */
-    private String getMimeType(String filename) {
+    /** Maps file extensions to their corresponding MIME types. */
+    private String guessContentType(String filename) {
         String lower = filename.toLowerCase();
         if (lower.endsWith(".html")) return "text/html; charset=UTF-8";
         if (lower.endsWith(".css"))  return "text/css; charset=UTF-8";
