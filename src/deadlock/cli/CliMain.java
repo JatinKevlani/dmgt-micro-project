@@ -7,10 +7,7 @@ import deadlock.model.SystemState;
 import java.util.Scanner;
 
 /**
- * Main — Entry point of the Deadlock Detection Simulator.
- * 
- * Displays the welcome banner, drives the main program loop,
- * and coordinates InputHandler, BankersAlgorithm, and OutputPrinter.
+ * Main entry point for the CLI version of the Deadlock Detection Simulator.
  */
 public class CliMain {
 
@@ -21,62 +18,63 @@ public class CliMain {
     public static void main(String[] args) {
 
         Scanner scanner = new Scanner(System.in);
-        ConsoleInputReader inputHandler = new ConsoleInputReader(scanner);
+        ConsoleInputReader inputReader = new ConsoleInputReader(scanner);
         BankersAlgorithm algorithm = new BankersAlgorithm();
-        ConsoleOutputWriter printer = new ConsoleOutputWriter();
+        ConsoleOutputWriter outputWriter = new ConsoleOutputWriter();
 
         try {
-            boolean runAgain = true;
+            boolean keepRunning = true;
 
-            while (runAgain) {
-                // ═══ Screen 1: Welcome Banner ═══════════════════
-                printer.printWelcomeBanner();
+            while (keepRunning) {
+
+                outputWriter.printWelcomeBanner();
                 System.out.print("Press ENTER to begin...");
                 scanner.nextLine();
 
-                // ═══ Screens 2–6: Collect Input ═════════════════
-                SystemState state = inputHandler.collectInput();
+
+                SystemState state = inputReader.collectInput();
 
                 if (state == null) {
-                    // Invalid input — ask to retry
+
                     System.out.println();
-                    System.out.print(YELLOW + "  Try again? (Y/N): " + RESET);
+                    System.out.print(YELLOW + "  Would you like to try again? (Y/N): " + RESET);
                     String retry = scanner.nextLine().trim();
                     if (!retry.equalsIgnoreCase("Y")) {
-                        runAgain = false;
+                        keepRunning = false;
                     }
                     continue;
                 }
 
-                // ═══ Screen 7: Input Summary ════════════════════
-                printer.printInputSummary(state);
 
-                System.out.print("  Confirm and Run Algorithm? (Y/N): ");
+                outputWriter.printInputSummary(state);
+
+                System.out.print("  Everything look right? Run the algorithm? (Y/N): ");
                 String confirm = scanner.nextLine().trim();
                 if (!confirm.equalsIgnoreCase("Y")) {
-                    System.out.println(YELLOW + "  Algorithm execution cancelled. Starting over..." + RESET);
+                    System.out.println(YELLOW + "  Restarting..." + RESET);
                     continue;
                 }
 
-                // ═══ Screens 8–9: Run Algorithm & Print Result ══
-                DeadlockResult result = algorithm.runSafetyAlgorithm(state);
-                printer.printResult(result);
 
-                // ═══ Ask to Run Again (design.md Screen 9A/9B) ══
+                DeadlockResult result = algorithm.runSafetyAlgorithm(state);
+                outputWriter.printResult(result);
+
+
                 System.out.println();
-                System.out.print("  Run again with new inputs? (Y/N): ");
+                System.out.print("  Want to try again with new inputs? (Y/N): ");
                 String again = scanner.nextLine().trim();
-                runAgain = again.equalsIgnoreCase("Y");
+                keepRunning = again.equalsIgnoreCase("Y");
             }
 
+
             System.out.println();
-            System.out.println(CYAN + "  Thank you for using the Deadlock Detection Simulator!" + RESET);
+            System.out.println(CYAN + "  Exiting Simulator." + RESET);
             System.out.println(CYAN + "  " + "\u2500".repeat(58) + RESET);
             System.out.println();
 
         } catch (Exception e) {
             System.out.println();
-            System.out.println("\u001B[31m  Unexpected error: " + e.getMessage() + RESET);
+            System.out.println("\u001B[31m  An error occurred: " + e.getMessage() + RESET);
             e.printStackTrace();
         } finally {
             scanner.close();

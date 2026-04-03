@@ -11,72 +11,71 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * ApiHandler — REST API endpoint for the Banker's Algorithm.
- * 
- * POST /api/solve
- *   Request:  JSON with n, m, totalResources, allocation, request
- *   Response: JSON with isSafe, safeSequence, deadlockedProcs, traceLog
- * 
- * Manual JSON parsing — no external libraries needed.
+ * API Handler for the /api/solve endpoint.
+ * Parses incoming JSON POST requests containing system state,
+ * runs the Banker's Algorithm, and returns a JSON response.
  */
 public class ApiHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        // CORS headers
+        // Set CORS headers
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "POST, OPTIONS");
         exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
 
-        // Handle preflight OPTIONS
+        // Process preflight OPTIONS request
         if ("OPTIONS".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(204, -1);
             return;
         }
 
+        // Validate request method
         if (!"POST".equals(exchange.getRequestMethod())) {
-            String error = "{\"error\": \"Only POST method is allowed\"}";
+            String error = "{\"error\": \"Method not allowed.\"}";
             sendResponse(exchange, 405, error);
             return;
         }
 
         try {
-            // Read request body
-            InputStream is = exchange.getRequestBody();
-            String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            // Read body
+            InputStream inputStream = exchange.getRequestBody();
+            String requestBody = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
 
-            // Parse JSON input
-            SystemState state = parseInput(body);
+            // Parse state
+            SystemState state = parseInput(requestBody);
 
             // Run algorithm
             BankersAlgorithm algorithm = new BankersAlgorithm();
             DeadlockResult result = algorithm.runSafetyAlgorithm(state);
 
-            // Build JSON response
+            // Build response
             String response = buildResponse(result, state);
             sendResponse(exchange, 200, response);
 
         } catch (Exception e) {
+            // Handle errors
             String error = "{\"error\": \"" + escapeJson(e.getMessage()) + "\"}";
             sendResponse(exchange, 400, error);
         }
     }
 
-    // ─── Send HTTP Response ─────────────────────────────────────
-
-    private void sendResponse(HttpExchange exchange, int code, String body) throws IOException {
+    /** Sends an HTTP response with the given status code and body. */
+    private void sendResponse(HttpExchange exchange, int statusCode, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        exchange.sendResponseHeaders(code, bytes.length);
-        OutputStream os = exchange.getResponseBody();
-        os.write(bytes);
-        os.close();
+        exchange.sendResponseHeaders(statusCode, bytes.length);
+        OutputStream outputStream = exchange.getResponseBody();
+        outputStream.write(bytes);
+        outputStream.close();
     }
 
-    // ─── Parse JSON Input (manual — no libraries) ───────────────
+    // --- JSON Parsing ---
 
+    /**
+     * Parses the incoming JSON string into a SystemState object.
+     */
     private SystemState parseInput(String json) {
-        // Remove whitespace around structure characters
         json = json.trim();
 
         int n = getJsonInt(json, "n");
@@ -86,17 +85,17 @@ public class ApiHandler implements HttpHandler {
         int[][] allocation = getJsonInt2DArray(json, "allocation");
         int[][] request = getJsonInt2DArray(json, "request");
 
-        // Compute available = total - columnSum(allocation)
+        // Compute available vector
         int[] available = new int[m];
         for (int j = 0; j < m; j++) {
-            int sum = 0;
+            int totalAllocated = 0;
             for (int i = 0; i < n; i++) {
-                sum += allocation[i][j];
+                totalAllocated += allocation[i][j];
             }
-            available[j] = totalResources[j] - sum;
+            available[j] = totalResources[j] - totalAllocated;
         }
 
-        // Validate
+        // Validate available vector
         for (int j = 0; j < m; j++) {
             if (available[j] < 0) {
                 throw new RuntimeException("Allocation exceeds Total Resources for R" + j);
@@ -106,98 +105,92 @@ public class ApiHandler implements HttpHandler {
         return new SystemState(n, m, totalResources, allocation, request, available);
     }
 
-    // ─── Build JSON Response ────────────────────────────────────
 
+
+    /** Constructs the JSON response string from the result. */
     private String buildResponse(DeadlockResult result, SystemState state) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
+        StringBuilder json = new StringBuilder();
+        json.append("{");
 
-        // isSafe
-        sb.append("\"isSafe\":").append(result.isSafe()).append(",");
+        // Was the system safe?
+        json.append("\"isSafe\":").append(result.isSafe()).append(",");
 
-        // available
-        sb.append("\"available\":[");
+        // Available resources vector
+        json.append("\"available\":[");
         for (int j = 0; j < state.getM(); j++) {
-            sb.append(state.getAvailable()[j]);
-            if (j < state.getM() - 1) sb.append(",");
+            json.append(state.getAvailable()[j]);
+            if (j < state.getM() - 1) json.append(",");
         }
-        sb.append("],");
+        json.append("],");
 
-        // safeSequence
-        sb.append("\"safeSequence\":[");
+        // Safe execution sequence (empty if deadlocked)
+        json.append("\"safeSequence\":[");
         List<Integer> seq = result.getSafeSequence();
         for (int i = 0; i < seq.size(); i++) {
-            sb.append(seq.get(i));
-            if (i < seq.size() - 1) sb.append(",");
+            json.append(seq.get(i));
+            if (i < seq.size() - 1) json.append(",");
         }
-        sb.append("],");
+        json.append("],");
 
-        // deadlockedProcs
-        sb.append("\"deadlockedProcs\":[");
+        // Deadlocked processes (empty if safe)
+        json.append("\"deadlockedProcs\":[");
         List<Integer> procs = result.getDeadlockedProcs();
         for (int i = 0; i < procs.size(); i++) {
-            sb.append(procs.get(i));
-            if (i < procs.size() - 1) sb.append(",");
+            json.append(procs.get(i));
+            if (i < procs.size() - 1) json.append(",");
         }
-        sb.append("],");
+        json.append("],");
 
-        // traceLog
-        sb.append("\"traceLog\":[");
-        List<String> trace = result.getTraceLog();
-        for (int i = 0; i < trace.size(); i++) {
-            sb.append("\"").append(escapeJson(trace.get(i))).append("\"");
-            if (i < trace.size() - 1) sb.append(",");
-        }
-        sb.append("],");
 
-        // ─── RAG data: n, m, allocation, request, totalResources ──
-        sb.append("\"n\":").append(state.getN()).append(",");
-        sb.append("\"m\":").append(state.getM()).append(",");
 
-        // totalResources
-        sb.append("\"totalResources\":[");
+        // Echo back input data
+        json.append("\"n\":").append(state.getN()).append(",");
+        json.append("\"m\":").append(state.getM()).append(",");
+
+        json.append("\"totalResources\":[");
         for (int j = 0; j < state.getM(); j++) {
-            sb.append(state.getTotalResources()[j]);
-            if (j < state.getM() - 1) sb.append(",");
+            json.append(state.getTotalResources()[j]);
+            if (j < state.getM() - 1) json.append(",");
         }
-        sb.append("],");
+        json.append("],");
 
-        // allocation 2D
-        sb.append("\"allocation\":[");
+        // Allocation matrix
+        json.append("\"allocation\":[");
         for (int i = 0; i < state.getN(); i++) {
-            sb.append("[");
+            json.append("[");
             for (int j = 0; j < state.getM(); j++) {
-                sb.append(state.getAllocation()[i][j]);
-                if (j < state.getM() - 1) sb.append(",");
+                json.append(state.getAllocation()[i][j]);
+                if (j < state.getM() - 1) json.append(",");
             }
-            sb.append("]");
-            if (i < state.getN() - 1) sb.append(",");
+            json.append("]");
+            if (i < state.getN() - 1) json.append(",");
         }
-        sb.append("],");
+        json.append("],");
 
-        // request 2D
-        sb.append("\"request\":[");
+        // Request matrix
+        json.append("\"request\":[");
         for (int i = 0; i < state.getN(); i++) {
-            sb.append("[");
+            json.append("[");
             for (int j = 0; j < state.getM(); j++) {
-                sb.append(state.getRequest()[i][j]);
-                if (j < state.getM() - 1) sb.append(",");
+                json.append(state.getRequest()[i][j]);
+                if (j < state.getM() - 1) json.append(",");
             }
-            sb.append("]");
-            if (i < state.getN() - 1) sb.append(",");
+            json.append("]");
+            if (i < state.getN() - 1) json.append(",");
         }
-        sb.append("]");
+        json.append("]");
 
-        sb.append("}");
-        return sb.toString();
+        json.append("}");
+        return json.toString();
     }
 
-    // ─── JSON Parsing Helpers ───────────────────────────────────
+    // --- JSON utility helpers ---
 
+    /** Extracts an integer value for the given key from a JSON string. */
     private int getJsonInt(String json, String key) {
         String pattern = "\"" + key + "\"";
         int idx = json.indexOf(pattern);
-        if (idx == -1) throw new RuntimeException("Missing field: " + key);
+        if (idx == -1) throw new RuntimeException("Missing required field: " + key);
 
         int colonIdx = json.indexOf(':', idx + pattern.length());
         int endIdx = colonIdx + 1;
@@ -208,18 +201,19 @@ public class ApiHandler implements HttpHandler {
         return Integer.parseInt(json.substring(start, endIdx).trim());
     }
 
+    /** Extracts a 1D integer array for the given key from a JSON string. */
     private int[] getJsonIntArray(String json, String key) {
         String pattern = "\"" + key + "\"";
         int idx = json.indexOf(pattern);
-        if (idx == -1) throw new RuntimeException("Missing field: " + key);
+        if (idx == -1) throw new RuntimeException("Missing required field: " + key);
 
         int bracketStart = json.indexOf('[', idx);
         int bracketEnd = json.indexOf(']', bracketStart);
-        String arrStr = json.substring(bracketStart + 1, bracketEnd).trim();
+        String arrayContent = json.substring(bracketStart + 1, bracketEnd).trim();
 
-        if (arrStr.isEmpty()) return new int[0];
+        if (arrayContent.isEmpty()) return new int[0];
 
-        String[] parts = arrStr.split(",");
+        String[] parts = arrayContent.split(",");
         int[] result = new int[parts.length];
         for (int i = 0; i < parts.length; i++) {
             result[i] = Integer.parseInt(parts[i].trim());
@@ -227,14 +221,14 @@ public class ApiHandler implements HttpHandler {
         return result;
     }
 
+    /** Extracts a 2D integer array (array of arrays) for the given key from a JSON string. */
     private int[][] getJsonInt2DArray(String json, String key) {
         String pattern = "\"" + key + "\"";
         int idx = json.indexOf(pattern);
-        if (idx == -1) throw new RuntimeException("Missing field: " + key);
+        if (idx == -1) throw new RuntimeException("Missing required field: " + key);
 
-        // Find the outer [ for 2D array
+        // Find the outer brackets of the 2D array
         int outerStart = json.indexOf('[', idx);
-        // Find the matching outer ]
         int depth = 0;
         int outerEnd = outerStart;
         for (int i = outerStart; i < json.length(); i++) {
@@ -245,15 +239,15 @@ public class ApiHandler implements HttpHandler {
 
         String content = json.substring(outerStart + 1, outerEnd).trim();
 
-        // Count inner arrays
-        int count = 0;
+        // Count how many inner arrays (rows) there are
+        int rowCount = 0;
         for (int i = 0; i < content.length(); i++) {
-            if (content.charAt(i) == '[') count++;
+            if (content.charAt(i) == '[') rowCount++;
         }
 
-        int[][] result = new int[count][];
+        int[][] result = new int[rowCount][];
         int pos = 0;
-        for (int row = 0; row < count; row++) {
+        for (int row = 0; row < rowCount; row++) {
             int start = content.indexOf('[', pos);
             int end = content.indexOf(']', start);
             String rowStr = content.substring(start + 1, end).trim();
@@ -268,6 +262,7 @@ public class ApiHandler implements HttpHandler {
         return result;
     }
 
+    /** Escapes special characters so strings are safe to embed in JSON. */
     private String escapeJson(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\")
